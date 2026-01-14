@@ -23,6 +23,7 @@
       - npm
       - docker
       - docker-compose
+      - git
       - python-pip
       - flatpak
     appimage_dir: "{{ ansible_env.HOME }}/applications"
