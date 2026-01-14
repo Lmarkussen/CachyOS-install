@@ -1,0 +1,244 @@
+---
+- name: Configure desktop
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    wallpaper_src: "{{ playbook_dir }}/resources/wallpaper.jpg"
+    wallpaper_dest: "{{ ansible_env.HOME }}/.local/share/wallpapers/wallpaper.jpg"
+    pacman_packages:
+      - fish
+      - tmux
+      - discord
+      - retroarch
+      - steam
+      - lutris
+      - grc
+      - thunar
+      - thunar-archive-plugin
+      - openvpn
+      - virtualbox
+      - go
+      - nodejs
+      - npm
+      - docker
+      - docker-compose
+      - python-pip
+      - flatpak
+    appimage_dir: "{{ ansible_env.HOME }}/applications"
+    curseforge_url: "https://curseforge.overwolf.com/downloads/curseforge-latest-linux.AppImage"
+    curseforge_dest: "{{ appimage_dir }}/curseforge-latest-linux.AppImage"
+    gnome_font_name: "Hack Nerd Font 11"
+    gnome_mono_font_name: "Hack Nerd Font Mono 11"
+    dock_favorites_fallback:
+      - brave-browser.desktop
+      - com.mitchellh.ghostty.desktop
+      - thunar.desktop
+      - discord.desktop
+      - com.protonpass.Pass.desktop
+      - heroic.desktop
+      - net.lutris.Lutris.desktop
+      - obsidian.desktop
+      - spotify.desktop
+  tasks:
+    - name: Install pacman packages
+      ansible.builtin.command: >
+        pacman -S --needed --noconfirm {{ pacman_packages | join(' ') }}
+      become: true
+      register: pacman_install
+      changed_when: pacman_install.rc == 0
+      failed_when: false
+
+    - name: Warn about pacman install failures
+      ansible.builtin.debug:
+        msg: "pacman install reported an issue; some packages may be missing."
+      when: pacman_install.rc != 0
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+      become: true
+      register: docker_service
+      failed_when: false
+
+    - name: Warn about Docker service failures
+      ansible.builtin.debug:
+        msg: "Failed to enable or start Docker."
+      when: docker_service is failed
+
+    - name: Ensure Flathub remote exists
+      ansible.builtin.command: >
+        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+      register: flathub_remote
+      changed_when: flathub_remote.rc == 0
+      failed_when: false
+
+    - name: Install Proton Pass (Flatpak)
+      ansible.builtin.command: >
+        flatpak install -y flathub com.protonpass.Pass
+      register: protonpass_flatpak
+      changed_when: protonpass_flatpak.rc == 0
+      failed_when: false
+
+    - name: Warn about Proton Pass Flatpak install failure
+      ansible.builtin.debug:
+        msg: "Proton Pass Flatpak install failed; check Flatpak setup or network access."
+      when: protonpass_flatpak.rc != 0
+
+    - name: Set fish as default shell
+      ansible.builtin.user:
+        name: "{{ ansible_env.USER }}"
+        shell: /usr/bin/fish
+      become: true
+      register: fish_shell
+      failed_when: false
+
+    - name: Warn about fish shell change failures
+      ansible.builtin.debug:
+        msg: "Failed to set fish as the default shell."
+      when: fish_shell is failed
+
+    - name: Set GNOME dark mode and theme
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
+      register: gnome_dark
+      changed_when: gnome_dark.rc == 0
+      failed_when: false
+
+    - name: Set GNOME GTK theme
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.interface gtk-theme "Dracula"
+      register: gnome_theme
+      changed_when: gnome_theme.rc == 0
+      failed_when: false
+
+    - name: Set GNOME window manager theme
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.wm.preferences theme "Dracula"
+      register: gnome_wm_theme
+      changed_when: gnome_wm_theme.rc == 0
+      failed_when: false
+
+    - name: Set GNOME default font
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.interface font-name "{{ gnome_font_name }}"
+      register: gnome_font
+      changed_when: gnome_font.rc == 0
+      failed_when: false
+
+    - name: Set GNOME default monospace font
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.interface monospace-font-name "{{ gnome_mono_font_name }}"
+      register: gnome_mono
+      changed_when: gnome_mono.rc == 0
+      failed_when: false
+
+    - name: Resolve GNOME dock favorites
+      ansible.builtin.shell: |
+        python - <<'PY'
+        import json
+        import os
+        search_dirs = [
+            "/usr/share/applications",
+            os.path.expanduser("~/.local/share/applications"),
+            "/var/lib/flatpak/exports/share/applications",
+            os.path.expanduser("~/.local/share/flatpak/exports/share/applications"),
+        ]
+        candidates = {
+            "brave": ["brave-browser.desktop"],
+            "ghostty": ["com.mitchellh.ghostty.desktop", "ghostty.desktop"],
+            "thunar": ["thunar.desktop"],
+            "discord": ["discord.desktop", "com.discordapp.Discord.desktop"],
+            "protonpass": ["com.protonpass.Pass.desktop", "proton-pass.desktop", "protonpass.desktop", "me.proton.Pass.desktop"],
+            "heroic": ["heroic.desktop", "com.heroicgameslauncher.hgl.desktop"],
+            "lutris": ["net.lutris.Lutris.desktop", "lutris.desktop"],
+            "obsidian": ["obsidian.desktop"],
+            "spotify": ["spotify.desktop", "com.spotify.Client.desktop", "spotify-launcher.desktop"],
+        }
+        found = []
+        for names in candidates.values():
+            hit = None
+            for name in names:
+                for d in search_dirs:
+                    if os.path.exists(os.path.join(d, name)):
+                        hit = name
+                        break
+                if hit:
+                    break
+            if hit:
+                found.append(hit)
+        print(json.dumps(found))
+        PY
+      register: dock_favorites_resolved
+      changed_when: false
+      failed_when: false
+
+    - name: Set GNOME dock favorites
+      ansible.builtin.shell: >
+        gsettings set org.gnome.shell favorite-apps '{{ dock_favorites_resolved.stdout | default("[]") }}'
+      register: gnome_dock
+      changed_when: gnome_dock.rc == 0
+      failed_when: false
+
+    - name: Fallback GNOME dock favorites
+      ansible.builtin.shell: >
+        gsettings set org.gnome.shell favorite-apps '{{ dock_favorites_fallback | to_json }}'
+      when: dock_favorites_resolved.stdout is not defined or dock_favorites_resolved.stdout == "[]"
+      register: gnome_dock_fallback
+      changed_when: gnome_dock_fallback.rc == 0
+      failed_when: false
+
+    - name: Ensure applications directory exists
+      ansible.builtin.file:
+        path: "{{ appimage_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download CurseForge AppImage
+      ansible.builtin.get_url:
+        url: "{{ curseforge_url }}"
+        dest: "{{ curseforge_dest }}"
+        mode: "0755"
+        force: false
+      register: curseforge_download
+      failed_when: false
+
+    - name: Warn about CurseForge download failure
+      ansible.builtin.debug:
+        msg: "CurseForge download failed; check network or URL."
+      when: curseforge_download is failed
+
+    - name: Ensure wallpaper directory exists
+      ansible.builtin.file:
+        path: "{{ wallpaper_dest | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy wallpaper into place
+      ansible.builtin.copy:
+        src: "{{ wallpaper_src }}"
+        dest: "{{ wallpaper_dest }}"
+        mode: "0644"
+
+    - name: Set wallpaper via GNOME (if available)
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.background picture-uri "file://{{ wallpaper_dest }}"
+      register: gnome_wallpaper
+      changed_when: gnome_wallpaper.rc == 0
+      failed_when: false
+
+    - name: Set wallpaper via GNOME (dark) (if available)
+      ansible.builtin.command: >
+        gsettings set org.gnome.desktop.background picture-uri-dark "file://{{ wallpaper_dest }}"
+      register: gnome_wallpaper_dark
+      changed_when: gnome_wallpaper_dark.rc == 0
+      failed_when: false
+
+    - name: Set wallpaper via KDE Plasma (if available)
+      ansible.builtin.command: >
+        plasma-apply-wallpaperimage "{{ wallpaper_dest }}"
+      register: kde_wallpaper
+      changed_when: kde_wallpaper.rc == 0
+      failed_when: false
