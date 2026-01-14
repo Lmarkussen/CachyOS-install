@@ -3,6 +3,15 @@ set -euo pipefail
 
 clear
 
+cat <<'BANNER'
+ ██████╗ █████╗  ██████╗██╗  ██╗██╗   ██╗ ██████╗ ███████╗
+██╔════╝██╔══██╗██╔════╝██║  ██║╚██╗ ██╔╝██╔═══██╗██╔════╝
+██║     ███████║██║     ███████║ ╚████╔╝ ██║   ██║███████╗
+██║     ██╔══██║██║     ██╔══██║  ╚██╔╝  ██║   ██║╚════██║
+╚██████╗██║  ██║╚██████╗██║  ██║   ██║   ╚██████╔╝███████║
+ ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚══════╝
+BANNER
+
 RED="$(tput setaf 1)"
 GREEN="$(tput setaf 2)"
 YELLOW="$(tput setaf 3)"
@@ -39,11 +48,8 @@ CONFIG_TARGET="${CONFIG_TARGET:-$HOME/.config}"
 
 log "Starting install script"
 
-printf "%s%sSetup Summary%s\n" "${BOLD}" "${BLUE}" "${RESET}"
-printf "%s- %sExtracts %s\n" "${YELLOW}" "Unzips resources" "${RESOURCE_ZIP}"
-printf "%s- %sCopies configs to %s and user assets to %s\n" "${YELLOW}" "Copies config folders" "${CONFIG_TARGET}" "${HOME}"
-printf "%s- %sBuilds yay and installs packages\n" "${YELLOW}" "AUR helper setup"
-printf "%s- %sRuns ansible playbook: %s\n" "${YELLOW}" "Configuration" "${PLAYBOOK}"
+printf "%s%sCachyOS Desktop Setup%s\n" "${BOLD}" "${BLUE}" "${RESET}"
+printf "%sInstalls config files, packages, and desktop tweaks for a fresh CachyOS setup.%s\n" "${YELLOW}" "${RESET}"
 printf "%s\n" "${RESET}"
 
 read -r -p "Proceed with setup? [y/N] " confirm
