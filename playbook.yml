@@ -10,17 +10,44 @@
       - fish
       - tmux
       - discord
+      - code
       - retroarch
       - steam
       - lutris
+      - protonup-qt
+      - qbittorrent
       - grc
       - thunar
       - thunar-archive-plugin
-      - openvpn
+      - btop
+      - easyeffects
+      - fastfetch
+      - glances
+      - gnome-tweaks
+      - mission-center
+      - mpv
+      - networkmanager-openvpn
+      - openssh
+      - obs-studio
+      - papirus-icon-theme
+      - pavucontrol
+      - playerctl
+      - ripgrep
+      - rsync
+      - tailscale
+      - unrar
+      - unzip
+      - uv
       - virtualbox
+      - virtualbox-host-dkms
+      - wget
+      - xclip
+      - yt-dlp
+      - zip
       - go
       - nodejs
       - npm
+      - nvm
       - docker
       - docker-compose
       - git
@@ -31,16 +58,27 @@
     curseforge_dest: "{{ appimage_dir }}/curseforge-latest-linux.AppImage"
     gnome_font_name: "Hack Nerd Font 11"
     gnome_mono_font_name: "Hack Nerd Font Mono 11"
+    flatpak_apps:
+      - com.mattjakeman.ExtensionManager
+      - com.protonvpn.www
+      - com.spotify.Client
+      - com.vysp3r.ProtonPlus
+      - io.github.realmazharhussain.GdmSettings
+      - md.obsidian.Obsidian
+      - me.proton.Pass
+      - org.gabmus.hydrapaper
+      - org.signal.Signal
+      - org.videolan.VLC
     dock_favorites_fallback:
       - brave-browser.desktop
       - com.mitchellh.ghostty.desktop
       - thunar.desktop
       - discord.desktop
-      - com.protonpass.Pass.desktop
+      - me.proton.Pass.desktop
       - heroic.desktop
       - net.lutris.Lutris.desktop
-      - obsidian.desktop
-      - spotify.desktop
+      - md.obsidian.Obsidian.desktop
+      - com.spotify.Client.desktop
   tasks:
     - name: Install pacman packages
       ansible.builtin.command: >
@@ -69,6 +107,20 @@
         msg: "Failed to enable or start Docker."
       when: docker_service is failed
 
+    - name: Enable and start Tailscale
+      ansible.builtin.systemd:
+        name: tailscaled
+        enabled: true
+        state: started
+      become: true
+      register: tailscale_service
+      failed_when: false
+
+    - name: Warn about Tailscale service failures
+      ansible.builtin.debug:
+        msg: "Failed to enable or start Tailscale."
+      when: tailscale_service is failed
+
     - name: Ensure Flathub remote exists
       ansible.builtin.command: >
         flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
@@ -76,17 +128,18 @@
       changed_when: flathub_remote.rc == 0
       failed_when: false
 
-    - name: Install Proton Pass (Flatpak)
+    - name: Install Flatpak apps
       ansible.builtin.command: >
-        flatpak install -y flathub com.protonpass.Pass
-      register: protonpass_flatpak
-      changed_when: protonpass_flatpak.rc == 0
+        flatpak install -y flathub {{ item }}
+      loop: "{{ flatpak_apps }}"
+      register: flatpak_install
+      changed_when: false
       failed_when: false
 
-    - name: Warn about Proton Pass Flatpak install failure
+    - name: Warn about Flatpak install failures
       ansible.builtin.debug:
-        msg: "Proton Pass Flatpak install failed; check Flatpak setup or network access."
-      when: protonpass_flatpak.rc != 0
+        msg: "One or more Flatpak installs failed; check Flatpak setup or network access."
+      when: flatpak_install.results | selectattr('rc', 'ne', 0) | list | length > 0
 
     - name: Set fish as default shell
       ansible.builtin.user:
@@ -152,10 +205,10 @@
             "ghostty": ["com.mitchellh.ghostty.desktop", "ghostty.desktop"],
             "thunar": ["thunar.desktop"],
             "discord": ["discord.desktop", "com.discordapp.Discord.desktop"],
-            "protonpass": ["com.protonpass.Pass.desktop", "proton-pass.desktop", "protonpass.desktop", "me.proton.Pass.desktop"],
+            "protonpass": ["me.proton.Pass.desktop", "com.protonpass.Pass.desktop", "proton-pass.desktop", "protonpass.desktop"],
             "heroic": ["heroic.desktop", "com.heroicgameslauncher.hgl.desktop"],
             "lutris": ["net.lutris.Lutris.desktop", "lutris.desktop"],
-            "obsidian": ["obsidian.desktop"],
+            "obsidian": ["md.obsidian.Obsidian.desktop", "obsidian.desktop"],
             "spotify": ["spotify.desktop", "com.spotify.Client.desktop", "spotify-launcher.desktop"],
         }
         found = []

@@ -45,6 +45,15 @@ require_cmd() {
 RESOURCE_ZIP="${RESOURCE_ZIP:-resources.zip}"
 PLAYBOOK="${PLAYBOOK:-playbook.yml}"
 CONFIG_TARGET="${CONFIG_TARGET:-$HOME/.config}"
+AUR_PACKAGES=(
+  ant-dracula-theme-git
+  brave-bin
+  ghostty
+  heroic-games-launcher
+  sublime-text-4
+  ventoy-bin
+  whitesur-icon-theme
+)
 
 log "Starting install script"
 
@@ -97,6 +106,12 @@ for dir in .fonts .themes .icons; do
   fi
 done
 
+if require_cmd fc-cache; then
+  log "Refreshing font cache"
+  fc-cache -f "${HOME}/.fonts"
+  ok "Font cache refreshed"
+fi
+
 if ! require_cmd git; then
   log "Installing git"
   sudo pacman -S --needed --noconfirm git
@@ -121,17 +136,11 @@ log "Building yay"
 ok "yay built and installed"
 
 log "Installing packages with yay"
-yay -S --needed --noconfirm \
-  brave-bin \
-  dracula-gtk-theme \
-  ghostty \
-  heroic-games-launcher \
-  obsidian \
-  spotify-launcher
+yay -S --needed --noconfirm "${AUR_PACKAGES[@]}"
 ok "Installed AUR packages"
 
 log "Installing ansible"
-yay -S --needed --noconfirm ansible
+sudo pacman -S --needed --noconfirm ansible
 ok "Ansible installed"
 
 if [[ ! -f "${PLAYBOOK}" ]]; then
